@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+.env
+*.pkl
+.idea/
+
+# 数据文件（不进Git）
+data/raw/
+*.pdf
+*.csv
+*.xlsx
+
+# 模型文件（太大）
+models/
+
+# 临时文件
+tmp/
+*.tmp
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Node
+node_modules/
+dist/
