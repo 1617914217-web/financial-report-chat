@@ -1,15 +1,12 @@
 # -*- coding: utf-8 -*-
-"""
-规则引擎：从PDF提取财务数据
-支持上交所/深交所，处理列错位问题
-"""
+"""规则引擎：从PDF提取财务数据"""
 import re
 import os
 import pdfplumber
 
 
 def parse_num(s):
-    """解析数字，处理千分位"""
+    """解析数字"""
     if s is None:
         return None
     s = str(s).strip().replace(",", "").replace(" ", "")
@@ -22,7 +19,7 @@ def parse_num(s):
 
 
 def find_years(texts):
-    """从文本找年份，返回{列索引: 年份}"""
+    """找年份"""
     years = {}
     for i, t in enumerate(texts):
         t = str(t).strip()
@@ -62,14 +59,12 @@ def detect_type(headers, page_text=""):
 
 
 def is_valid(row):
-    """判断是否有效数据行"""
+    """判断有效数据行"""
     if not row or len(row) < 2:
         return False
-    # 有标签
     labels = sum(1 for c in row[:3] if str(c).strip() and str(c).strip() not in ("-", "—"))
     if labels == 0:
         return False
-    # 有数值
     return any(parse_num(c) is not None for c in row)
 
 
@@ -113,14 +108,12 @@ class EngineA:
             if ttype == "unknown":
                 continue
 
-            # 找年份
             years = self._find_years(tbl, txt)
             if not years:
                 inferred = self._infer_year()
                 if inferred:
                     years = {i: inferred for i in range(len(tbl[0]))}
 
-            # 解析行
             rows = self._parse(tbl, years)
             if rows:
                 self.tables.append({
@@ -133,7 +126,6 @@ class EngineA:
 
     def _find_years(self, tbl, txt):
         """找年份列"""
-        # 扫描所有单元格
         all_texts = []
         for row in tbl:
             for cell in row:
@@ -146,10 +138,10 @@ class EngineA:
         return int(m.group(1)) if m else None
 
     def _parse(self, tbl, years):
-        """解析行数据，处理列错位"""
+        """解析行数据"""
         results = []
 
-        for row in tbl[1:]:  # 跳表头
+        for row in tbl[1:]:
             if not is_valid(row):
                 continue
 
@@ -165,21 +157,19 @@ class EngineA:
 
             label = str(row[label_col]).strip()
 
-            # 找数值：当前列 → 向右 → 向左（解决列错位）
+            # 找数值：当前→右→左
             col_idx = None
             for i in range(len(row)):
                 if parse_num(row[i]) is not None:
                     col_idx = i
                     break
 
-            # 向右扫
             if col_idx is None:
                 for i in range(label_col + 1, len(row)):
                     if parse_num(row[i]) is not None:
                         col_idx = i
                         break
 
-            # 向左扫
             if col_idx is None:
                 for i in range(label_col - 1, -1, -1):
                     if parse_num(row[i]) is not None:
@@ -189,7 +179,6 @@ class EngineA:
             if col_idx is None:
                 continue
 
-            # 年份（可能错位1列）
             year = years.get(col_idx) or years.get(col_idx - 1)
             if not year and years:
                 year = list(years.values())[0]

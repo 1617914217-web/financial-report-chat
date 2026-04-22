@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""PDF提取整合入口"""
+"""PDF提取入口"""
 import os
 import json
 import time
@@ -9,11 +9,9 @@ import multiprocessing as mp
 from .engine_a_rules import EngineA
 from .engine_b_deepseek import EngineB
 
-# 加载配置
 try:
     from config_loader import get
 except:
-    import os
     get = lambda k, d="": os.environ.get(k, d)
 
 MYSQL = {
@@ -25,7 +23,7 @@ MYSQL = {
     "charset": "utf8mb4",
 }
 
-# 中文→英文字段映射
+# 字段映射
 FIELD_MAP = {
     "资产总计": "total_assets", "总资产": "total_assets",
     "负债合计": "total_liabilities", "总负债": "total_liabilities",

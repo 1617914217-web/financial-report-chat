@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""读.env配置，零依赖"""
+"""读.env配置"""
 import os
 
 _loaded = False

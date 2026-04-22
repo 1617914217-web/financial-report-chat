@@ -1,10 +1,9 @@
 # -*- coding: utf-8 -*-
-"""LLM兜底引擎 - DeepSeek V3 via SiliconFlow"""
+"""LLM兜底引擎"""
 import os
 import json
 import re
 
-# 加载配置
 try:
     from config_loader import get
 except:
@@ -14,7 +13,6 @@ API_KEY = get("SILICONFLOW_API_KEY", "")
 BASE_URL = get("SILICONFLOW_BASE_URL", "https://api.siliconflow.cn/v1")
 MODEL = "deepseek-ai/DeepSeek-V3"
 
-# 提示词模板
 PROMPT = """你是财务分析师。根据下面信息生成SQL。
 
 【表结构】
