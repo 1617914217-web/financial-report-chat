@@ -28,3 +28,10 @@ Thumbs.db
 # Node
 node_modules/
 dist/
+
+# 生成的图表
+result/
+
+# 临时脚本
+_*.py
+start_*.bat
