@@ -26,18 +26,33 @@ class EntityAligner:
         with open(os.path.join(base_dir, "data", "company_alias.json"), "r", encoding="utf-8") as f:
             self.company_alias = json.load(f)
 
-        # 加载科目映射（从financial_dictionary.json）
-        with open(os.path.join(base_dir, "data", "financial_dictionary.json"), "r", encoding="utf-8") as f:
-            fin_dict = json.load(f)
-            self.subject_mapping = {}
-            for item in fin_dict:
-                std_name = item.get("标准名称", "")
-                db_field = item.get("数据库字段", "")
-                aliases = item.get("别名", [])
-                if std_name and db_field:
-                    self.subject_mapping[std_name] = db_field
-                    for alias in aliases:
-                        self.subject_mapping[alias] = db_field
+        # 加载科目映射（从financial_dictionary.json，如存在）
+        self.subject_mapping = {}
+        fin_dict_path = os.path.join(base_dir, "data", "financial_dictionary.json")
+        if os.path.exists(fin_dict_path):
+            with open(fin_dict_path, "r", encoding="utf-8") as f:
+                fin_dict = json.load(f)
+                for item in fin_dict:
+                    std_name = item.get("标准名称", "")
+                    db_field = item.get("数据库字段", "")
+                    aliases = item.get("别名", [])
+                    if std_name and db_field:
+                        self.subject_mapping[std_name] = db_field
+                        for alias in aliases:
+                            self.subject_mapping[alias] = db_field
+        else:
+            # 使用默认映射
+            self.subject_mapping = {
+                "净利润": "net_profit",
+                "营业收入": "operating_revenue",
+                "总资产": "asset_total_assets",
+                "总负债": "liability_total_liabilities",
+                "净资产": "net_assets",
+                "毛利率": "gross_profit_margin",
+                "净利率": "net_profit_margin",
+                "roe": "roe",
+                "资产负债率": "asset_liability_ratio",
+            }
 
         # 时间正则
         self.time_patterns = [

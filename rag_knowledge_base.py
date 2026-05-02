@@ -194,15 +194,16 @@ class KnowledgeBase:
 
         # 加载向量化模型
         print(f"加载向量化模型: {embedding_model}")
-        try:
-            self.encoder = SentenceTransformer(embedding_model, trust_remote_code=True)
-        except Exception as e:
-            print(f"模型加载失败，尝试本地路径: {e}")
-            # 尝试本地路径
-            local_path = os.path.join(os.path.dirname(__file__), "models", embedding_model.split("/")[-1])
-            if os.path.exists(local_path):
-                self.encoder = SentenceTransformer(local_path, trust_remote_code=True)
-            else:
+        # 优先使用本地路径
+        local_path = os.path.join(os.path.dirname(__file__), "models", "BAAI", "bge-large-zh-v1___5")
+        if os.path.exists(local_path):
+            print(f"使用本地模型: {local_path}")
+            self.encoder = SentenceTransformer(local_path, trust_remote_code=True, local_files_only=True)
+        else:
+            try:
+                self.encoder = SentenceTransformer(embedding_model, trust_remote_code=True)
+            except Exception as e:
+                print(f"模型加载失败: {e}")
                 raise
 
         # 加载重排模型（如有）
