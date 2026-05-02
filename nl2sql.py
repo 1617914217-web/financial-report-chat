@@ -103,7 +103,7 @@ FEW_SHOT_EXAMPLES = """
 示例1:
 用户问题：金花股份2022年净利润是多少？
 分析：查询单值，公司=金花股份(代码600080)，年份=2022，科目=净利润，表=stock_income_statement_data
-SQL: SELECT net_profit FROM stock_income_statement_data WHERE stock_code='600080' AND report_period='2022-12-31';
+SQL: SELECT stock_code, stock_abbr, net_profit FROM stock_income_statement_data WHERE stock_code='600080' AND report_period='2022-12-31';
 
 示例2:
 用户问题：2022年利润最高的3家公司？
@@ -194,6 +194,13 @@ class NL2SQLGenerator:
     def _build_prompt(self, question: str, intent: str = None) -> str:
         intent_hint = f"\n意图: {intent}\n" if intent else ""
         return f"""你是一个SQL专家。请根据用户问题生成MySQL查询SQL。
+
+规则：
+1. 只能生成SELECT查询，禁止INSERT/UPDATE/DELETE/DROP等操作
+2. 公司匹配用stock_code（股票代码），不要用stock_abbr
+3. 报告期格式：年报用'2022-12-31'，半年报用'2022-06-30'
+4. 数值字段单位是元，查询结果保持原样
+5. SELECT语句必须包含stock_code和stock_abbr字段
 
 数据库Schema:
 {SCHEMA}
