@@ -185,19 +185,21 @@ class Visualizer:
         """生成自然语言结论"""
         if not data:
             return "未查询到相关数据。"
-        
+
         # 统一数据格式：支持 {"label": ..., "value": ...} 和原始SQL结果
         normalized_data = []
         for d in data:
             if "label" in d and "value" in d:
                 normalized_data.append(d)
             else:
-                # 原始SQL结果：取第一个非None字段作为值
+                # 原始SQL结果：取stock_code/stock_abbr作为label，第一个数值字段作为value
                 keys = list(d.keys())
                 label = ""
                 value = None
                 for k in keys:
-                    if k in ("stock_code", "stock_abbr"):
+                    if k == "stock_abbr" and d[k]:
+                        label = str(d[k])
+                    elif k == "stock_code" and not label:
                         label = str(d[k])
                     elif value is None and d[k] is not None:
                         try:
@@ -206,16 +208,16 @@ class Visualizer:
                             continue
                 if value is not None:
                     normalized_data.append({"label": label or "结果", "value": value})
-        
+
         if not normalized_data:
             return "查询到数据但无法解析数值。"
-        
+
         if len(normalized_data) == 1:
             d = normalized_data[0]
             label = d.get("label", "")
             value = d.get("value", "")
             return f"{label}为{value:,.2f}。"
-        
+
         # 多值情况
         values = [float(d.get("value", 0)) for d in normalized_data]
         labels = [d.get("label", "") for d in normalized_data]
