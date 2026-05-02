@@ -145,17 +145,17 @@ class PDFExtractor:
             year = rec.get("year")
             if not year:
                 continue
-            report_date = f"{year}-12-31"
+            report_period = f"{year}-12-31"
 
             sql = f"""
-                INSERT INTO {table} (stock_code, report_date, {field})
+                INSERT INTO {table} (stock_code, report_period, {field})
                 VALUES (%s, %s, %s)
                 ON DUPLICATE KEY UPDATE {field} = VALUES({field})
             """
             try:
                 cur.execute(sql, (
                     rec.get("stock_code", self.stock_code),
-                    report_date,
+                    report_period,
                     rec.get("value"),
                 ))
                 n += 1

@@ -17,7 +17,25 @@ def load_model():
     return vec, clf
 
 
+# 规则关键词（用于CALCULATE和RANK的优先判断）
+RANK_KEYWORDS = ["排名", "最高", "最低", "最强", "最好", "最差", "前", "后",
+                 "第一", "第二", "第三", "前十", "前五", "前三"]
+CALCULATE_KEYWORDS = ["计算", "怎么算", "求", "增长率", "增速", "增幅", "同比", "环比",
+                      "变化率", "变动", "差额", "差值", "比值"]
+
+
 def predict(question: str, vec=None, clf=None):
+    q = question.lower()
+    # 规则优先：RANK
+    for kw in RANK_KEYWORDS:
+        if kw in q:
+            return "RANK", 0.95
+    # 规则优先：CALCULATE
+    for kw in CALCULATE_KEYWORDS:
+        if kw in q:
+            return "CALCULATE", 0.90
+
+    # TF-IDF fallback
     if vec is None or clf is None:
         vec, clf = load_model()
     X = vec.transform([question])
@@ -39,7 +57,6 @@ def main():
     print(f"问题: {question}")
     print(f"意图: {label}  (置信度: {confidence:.2%})")
 
-    # 显示各标签概率
     for l, p in zip(clf.classes_, clf.predict_proba(vec.transform([question]))[0]):
         print(f"  {l}: {p:.2%}")
 
