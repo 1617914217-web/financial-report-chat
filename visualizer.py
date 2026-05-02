@@ -46,7 +46,7 @@ class Visualizer:
 
     def _next_path(self, problem_no: str = "2") -> str:
         """生成下一个保存路径"""
-        path = os.path.join(self.RESULT_DIR, f"B{problem_no}_{self.counter:02d}.jpg")
+        path = os.path.join(self.RESULT_DIR, f"B{problem_no}_{self.counter:02d}.jpg").replace("\\", "/")
         self.counter += 1
         return path
 
@@ -216,11 +216,16 @@ class Visualizer:
             d = normalized_data[0]
             label = d.get("label", "")
             value = d.get("value", "")
+            # 修复：确保label正确解码
+            if label and isinstance(label, bytes):
+                label = label.decode('utf-8', errors='ignore')
             return f"{label}为{value:,.2f}。"
 
         # 多值情况
         values = [float(d.get("value", 0)) for d in normalized_data]
         labels = [d.get("label", "") for d in normalized_data]
+        # 修复：确保labels正确解码
+        labels = [l.decode('utf-8', errors='ignore') if isinstance(l, bytes) else l for l in labels]
         max_idx = values.index(max(values))
         min_idx = values.index(min(values))
         return (f"共查询到{len(normalized_data)}条数据。"

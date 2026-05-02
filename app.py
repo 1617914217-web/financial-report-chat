@@ -56,6 +56,11 @@ def root():
     return {"status": "ok", "service": "Financial Report QA API"}
 
 
+@app.get("/health")
+def health():
+    return {"status": "healthy", "version": "1.0"}
+
+
 @app.post("/chat")
 def chat(req: ChatRequest):
     """对话式问答"""
