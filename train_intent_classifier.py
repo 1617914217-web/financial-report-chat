@@ -26,16 +26,46 @@ def load_data(path):
         reader = csv.DictReader(f)
         for row in reader:
             rows.append(row)
-    X = [r["question"] for r in rows]
+    X = [enhance_features(r["question"]) for r in rows]
     y = [r["label"] for r in rows]
     return X, y
+
+
+def enhance_features(text: str) -> str:
+    """特征工程：添加意图指示词作为额外特征"""
+    features = [text]
+    
+    # CALCULATE指示词
+    calc_indicators = ['计算', '公式', '怎么算', '等于多少', '占比', '比率', '比例', '除以', '乘以']
+    if any(w in text for w in calc_indicators):
+        features.append("__CALC__")
+    
+    # RANK指示词
+    rank_indicators = ['排名', '前', '后', '第几', '最高', '最低', '最多', '最少', 'top', '排序']
+    if any(w in text for w in rank_indicators):
+        features.append("__RANK__")
+    
+    # COMPARE指示词
+    compare_indicators = ['对比', '比较', 'vs', '和', '与', '同期', '同比', '环比']
+    if any(w in text for w in compare_indicators):
+        features.append("__COMPARE__")
+    
+    # QUERY_MULTI指示词
+    multi_indicators = ['、', '和', '与', '分别', '各']
+    # 检查是否有多个科目或多个公司
+    if text.count('、') >= 1 or '分别' in text or '各' in text:
+        # 排除COMPARE（已经处理了对比词）
+        if "__COMPARE__" not in features:
+            features.append("__MULTI__")
+    
+    return " ".join(features)
 
 
 def train(X, y):
     print(f"训练数据: {len(X)} 条, {len(set(y))} 类")
 
-    vec = TfidfVectorizer(max_features=5000, ngram_range=(1, 2),
-                          min_df=1, sublinear_tf=True)
+    vec = TfidfVectorizer(max_features=8000, ngram_range=(1, 3),
+                          min_df=2, sublinear_tf=True)
     Xv = vec.fit_transform(X)
     print(f"  向量化: {Xv.shape}")
 
