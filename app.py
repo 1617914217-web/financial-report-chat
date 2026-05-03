@@ -4,11 +4,26 @@ FastAPI 后端服务
 提供前端需要的 API 接口
 """
 import os, sys
+import json
 import pymysql
+from decimal import Decimal
 from typing import Optional
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
+
+
+class DecimalEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, Decimal):
+            return float(obj)
+        return super().default(obj)
+
+
+def jsonable(obj):
+    """将对象转为 JSON 可序列化的格式"""
+    return json.loads(json.dumps(obj, cls=DecimalEncoder, ensure_ascii=False))
 
 # 项目根目录
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -53,12 +68,12 @@ class SQLRequest(BaseModel):
 
 @app.get("/")
 def root():
-    return {"status": "ok", "service": "Financial Report QA API"}
+    return JSONResponse(content={"status": "ok", "service": "Financial Report QA API"})
 
 
 @app.get("/health")
 def health():
-    return {"status": "healthy", "version": "1.0"}
+    return JSONResponse(content={"status": "healthy", "version": "1.0"})
 
 
 @app.post("/chat")
@@ -66,14 +81,25 @@ def chat(req: ChatRequest):
     """对话式问答"""
     try:
         result = qa.ask(req.question)
-        return {
+        data = result.get("data")
+        # 包装成前端期望的 QueryResult 格式
+        if data and isinstance(data, list) and len(data) > 0:
+            query_result = {
+                "columns": list(data[0].keys()),
+                "rows": data,
+                "rowCount": len(data),
+                "sql": result.get("sql", ""),
+            }
+        else:
+            query_result = None
+        return JSONResponse(content=jsonable({
             "answer": result.get("conclusion", result.get("answer", "")),
             "sql": result.get("sql", ""),
-            "data": result.get("data"),
+            "data": query_result,
             "chart_path": result.get("chart_path"),
             "intent": result.get("intent"),
             "slots": result.get("slots"),
-        }
+        }))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -84,7 +110,7 @@ def intent(req: ChatRequest):
     try:
         from predict_intent import predict as predict_intent
         intent_label, confidence = predict_intent(req.question)
-        return {"intent": intent_label, "confidence": confidence}
+        return JSONResponse(content={"intent": intent_label, "confidence": confidence})
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -101,12 +127,12 @@ def execute_sql(req: SQLRequest):
             rows = cur.fetchall()
             columns = [desc[0] for desc in cur.description] if cur.description else []
         conn.close()
-        return {
+        return JSONResponse(content=jsonable({
             "columns": columns,
             "rows": rows,
             "rowCount": len(rows),
             "sql": req.sql,
-        }
+        }))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -120,7 +146,7 @@ def get_tables():
             cur.execute("SHOW TABLES")
             tables = [row[0] for row in cur.fetchall()]
         conn.close()
-        return {"tables": tables}
+        return JSONResponse(content={"tables": tables})
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -139,12 +165,12 @@ def preview_table(table_name: str, limit: int = 5):
             rows = cur.fetchall()
             columns = [desc[0] for desc in cur.description] if cur.description else []
         conn.close()
-        return {
+        return JSONResponse(content=jsonable({
             "columns": columns,
             "rows": rows,
             "rowCount": len(rows),
             "sql": f"SELECT * FROM {table_name} LIMIT {limit}",
-        }
+        }))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
