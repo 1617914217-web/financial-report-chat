@@ -43,9 +43,21 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 初始化问答系统
-qa = FinancialQA()
-validator = SQLValidator()
+# 初始化问答系统（延迟加载，确保工作目录正确）
+_qa_instance = None
+_validator_instance = None
+
+def get_qa():
+    global _qa_instance
+    if _qa_instance is None:
+        _qa_instance = FinancialQA()
+    return _qa_instance
+
+def get_validator():
+    global _validator_instance
+    if _validator_instance is None:
+        _validator_instance = SQLValidator()
+    return _validator_instance
 
 # MySQL 配置
 MYSQL_CONFIG = {
@@ -80,7 +92,7 @@ def health():
 def chat(req: ChatRequest):
     """对话式问答"""
     try:
-        result = qa.ask(req.question)
+        result = get_qa().ask(req.question)
         data = result.get("data")
         # 包装成前端期望的 QueryResult 格式
         if data and isinstance(data, list) and len(data) > 0:
@@ -118,7 +130,7 @@ def intent(req: ChatRequest):
 @app.post("/sql")
 def execute_sql(req: SQLRequest):
     """执行 SQL 查询"""
-    if not validator.validate(req.sql):
+    if not get_validator().validate(req.sql):
         raise HTTPException(status_code=400, detail="SQL 安全检查未通过")
     try:
         conn = pymysql.connect(**MYSQL_CONFIG)

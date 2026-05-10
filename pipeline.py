@@ -71,16 +71,18 @@ class FinancialQA:
             preprocessed = self.preprocessor.process(question)
             result["preprocessed"] = preprocessed
 
-            # 取标准化文本用于下游
+            # 取清洗后的文本用于槽位填充（保留中文术语）
+            cleaned_text = preprocessed.get("cleaned", "") if isinstance(preprocessed, dict) else str(preprocessed)
+            # 取标准化文本用于意图分类和NL2SQL
             normalized_text = preprocessed.get("normalized", "") if isinstance(preprocessed, dict) else str(preprocessed)
 
             # Step 2: 意图分类
-            intent, confidence = predict_intent(normalized_text)
+            intent, confidence = predict_intent(cleaned_text)
             result["intent"] = intent
             result["intent_confidence"] = confidence
 
-            # Step 3: 槽位填充
-            slot_result = self.slot_filler.extract(normalized_text)
+            # Step 3: 槽位填充（使用清洗后的文本，保留中文术语）
+            slot_result = self.slot_filler.extract(cleaned_text)
             result["slots"] = slot_result["slots"]
 
             # Step 4: NL2SQL生成
@@ -147,13 +149,14 @@ class FinancialQA:
         
         result = []
         for d in data:
-            # 查找label：优先使用stock_abbr，其次是stock_code，最后是第一个字符串列
+            # 查找label：优先使用stock_abbr，其次是stock_code
             label = ""
+            stock_code = d.get("stock_code", "")
             if "stock_abbr" in d and d["stock_abbr"]:
                 label = str(d["stock_abbr"])
-            elif "stock_code" in d and d["stock_code"]:
-                label = str(d["stock_code"])
-            
+            elif stock_code:
+                label = str(stock_code)
+
             # 查找value：第一个非None的数值字段
             value = None
             for k, v in d.items():
@@ -165,10 +168,14 @@ class FinancialQA:
                         break
                     except (TypeError, ValueError):
                         continue
-            
+
             if value is not None:
-                result.append({"label": label or "结果", "value": value})
-        
+                # 保留stock_code用于后续公司名映射
+                item = {"label": label or "结果", "value": value}
+                if stock_code:
+                    item["stock_code"] = stock_code
+                result.append(item)
+
         return result if result else data
 
 

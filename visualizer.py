@@ -23,18 +23,15 @@ class Visualizer:
 
     RESULT_DIR = "./result"
 
-    def __init__(self):
-        os.makedirs(self.RESULT_DIR, exist_ok=True)
-        self._setup_font()
-        self.counter = 1
-
     def _setup_font(self):
         """设置中文字体"""
         # 尝试常见中文字体
+        # 微软雅黑优先：汉字覆盖范围最广（含生僻字如"癀"），SimHei存在glyph缺失
         font_paths = [
+            "C:/Windows/Fonts/msyh.ttc",        # 微软雅黑（推荐）
+            "C:/Windows/Fonts/msyhbd.ttc",      # 微软雅黑粗体
             "C:/Windows/Fonts/simhei.ttf",      # 黑体
             "C:/Windows/Fonts/simsun.ttc",      # 宋体
-            "C:/Windows/Fonts/msyh.ttc",        # 微软雅黑
         ]
         for fp in font_paths:
             if os.path.exists(fp):
@@ -181,6 +178,40 @@ class Visualizer:
         plt.savefig(path, dpi=150, bbox_inches='tight')
         plt.close()
 
+    def __init__(self):
+        os.makedirs(self.RESULT_DIR, exist_ok=True)
+        self._setup_font()
+        self.counter = 1
+        # 加载公司别名映射，用于将股票代码转为正确中文名
+        self._company_alias = {}
+        alias_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "company_alias.json")
+        if os.path.exists(alias_path):
+            try:
+                with open(alias_path, "r", encoding="utf-8-sig") as f:
+                    raw_alias = json.load(f)
+                # 清理 \ufffd 替换符
+                for k, v in list(raw_alias.items()):
+                    if isinstance(v, str) and '\ufffd' in v:
+                        c = v.replace('\ufffd', '').strip()
+                        if c:
+                            self._company_alias[k] = c
+                        else:
+                            pass
+                    elif isinstance(v, str):
+                        self._company_alias[k] = v
+            except Exception:
+                pass
+
+    def _get_company_name(self, stock_code: str) -> str:
+        """根据股票代码返回正确的中文公司名"""
+        if stock_code in self._company_alias:
+            name = self._company_alias[stock_code]
+            # 如果映射值也是股票代码，说明没有中文名，退回原值
+            if name in self._company_alias:
+                return stock_code
+            return name
+        return stock_code
+
     def generate_conclusion(self, data: List[dict], question: str = "") -> str:
         """生成自然语言结论"""
         if not data:
@@ -219,6 +250,9 @@ class Visualizer:
             # 修复：确保label正确解码
             if label and isinstance(label, bytes):
                 label = label.decode('utf-8', errors='ignore')
+            # 优先用stock_code查company_alias映射，避免数据库乱码
+            if "stock_code" in d and d["stock_code"]:
+                label = self._get_company_name(str(d["stock_code"]))
             return f"{label}为{value:,.2f}。"
 
         # 多值情况
@@ -226,6 +260,14 @@ class Visualizer:
         labels = [d.get("label", "") for d in normalized_data]
         # 修复：确保labels正确解码
         labels = [l.decode('utf-8', errors='ignore') if isinstance(l, bytes) else l for l in labels]
+        # 用stock_code映射纠正乱码
+        corrected_labels = []
+        for i, d in enumerate(normalized_data):
+            if "stock_code" in d and d["stock_code"]:
+                corrected_labels.append(self._get_company_name(str(d["stock_code"])))
+            else:
+                corrected_labels.append(labels[i])
+        labels = corrected_labels
         max_idx = values.index(max(values))
         min_idx = values.index(min(values))
         return (f"共查询到{len(normalized_data)}条数据。"

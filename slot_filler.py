@@ -20,11 +20,27 @@ class RuleBasedSlotFiller:
 
     def _load_dictionaries(self):
         """加载词典"""
-        # 公司别名
+    def _sanitize_alias(self):
+        """"清理别名中的编码损坏字符，重建干净的UTF-8字符串"""
+        for k, v in list(self.company_alias.items()):
+            if isinstance(v, str) and '\ufffd' in v:
+                c = v.replace('\ufffd', '').strip()
+                if c:
+                    self.company_alias[k] = c
+                else:
+                    del self.company_alias[k]
+
+    def _load_dictionaries(self):
+        """"加载词典"""
+        # 公司别名（文件是GBK编码存储的UTF-8字节序列，需用GBK读回再清理）
         ca_path = os.path.join(self.project_dir, "data", "company_alias.json")
         if os.path.exists(ca_path):
-            with open(ca_path, "r", encoding="utf-8") as f:
-                self.company_alias = json.load(f)
+            try:
+                with open(ca_path, "r", encoding="utf-8-sig") as f:
+                    self.company_alias = json.load(f)
+                self._sanitize_alias()
+            except Exception:
+                self.company_alias = {}
         else:
             self.company_alias = {}
 
