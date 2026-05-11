@@ -124,7 +124,7 @@ class FinancialQA:
                         chart_data, chart_type=chart_type,
                         title=question[:30]
                     )
-                result["conclusion"] = self.visualizer.generate_conclusion(chart_data or data, question)
+                result["conclusion"] = self.visualizer.generate_conclusion(data, question)
 
             return result
 

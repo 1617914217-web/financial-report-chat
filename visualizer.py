@@ -223,7 +223,6 @@ class Visualizer:
             if "label" in d and "value" in d:
                 normalized_data.append(d)
             else:
-                # 原始SQL结果：取stock_code/stock_abbr作为label，第一个数值字段作为value
                 keys = list(d.keys())
                 label = ""
                 value = None
@@ -243,14 +242,66 @@ class Visualizer:
         if not normalized_data:
             return "查询到数据但无法解析数值。"
 
+        # 多指标情况：检查原始data中是否包含多个数值字段（如毛利率+净利率同时查询）
+        if len(data) == 1 and len(normalized_data) == 1:
+            d = data[0]
+            # 提取所有数值字段
+            numeric_fields = []
+            skip_keys = {"serial_number", "stock_code", "stock_abbr", "report_period", 
+                         "auto_table_type", "report_year", "validation_status", "validation_tags"}
+            for k, v in d.items():
+                if k in skip_keys:
+                    continue
+                if v is not None:
+                    try:
+                        numeric_fields.append((k, float(v)))
+                    except (TypeError, ValueError):
+                        continue
+            
+            if len(numeric_fields) > 1:
+                # 多指标结论：列出所有数值
+                label = ""
+                if "stock_abbr" in d and d["stock_abbr"]:
+                    label = str(d["stock_abbr"])
+                elif "stock_code" in d:
+                    label = str(d["stock_code"])
+                
+                # 字段名翻译
+                field_names = {
+                    "gross_profit_margin": "毛利率", "net_profit_margin": "净利率",
+                    "total_operating_revenue": "营业收入", "net_profit": "净利润",
+                    "total_operating_profit": "营业利润", "total_profit": "利润总额",
+                    "eps": "每股收益", "roe": "净资产收益率",
+                    "operating_revenue_yoy_growth": "营收同比增长",
+                    "net_profit_yoy_growth": "净利润同比增长",
+                    "asset_total_assets": "总资产",
+                    "equity_total_equity": "净资产",
+                    "operating_expense_cost_of_sales": "营业成本",
+                }
+                
+                parts = []
+                for k, v in numeric_fields:
+                    name = field_names.get(k, k.replace("_", " "))
+                    # 百分比字段
+                    if any(x in k for x in ["margin", "rate", "ratio", "growth", "roe"]):
+                        parts.append(f"{name}{v:.2f}%")
+                    else:
+                        if abs(v) >= 100000000:
+                            parts.append(f"{name}{v/100000000:.2f}亿")
+                        elif abs(v) >= 10000:
+                            parts.append(f"{name}{v/10000:.2f}万")
+                        else:
+                            parts.append(f"{name}{v:.2f}")
+                
+                if parts:
+                    return f"{label}：{'，'.join(parts)}。"
+
         if len(normalized_data) == 1:
             d = normalized_data[0]
             label = d.get("label", "")
             value = d.get("value", "")
-            # 修复：确保label正确解码
             if label and isinstance(label, bytes):
                 label = label.decode('utf-8', errors='ignore')
-            # 优先用stock_code查company_alias映射，避免数据库乱码
             if "stock_code" in d and d["stock_code"]:
                 label = self._get_company_name(str(d["stock_code"]))
             return f"{label}为{value:,.2f}。"
@@ -258,9 +309,7 @@ class Visualizer:
         # 多值情况
         values = [float(d.get("value", 0)) for d in normalized_data]
         labels = [d.get("label", "") for d in normalized_data]
-        # 修复：确保labels正确解码
         labels = [l.decode('utf-8', errors='ignore') if isinstance(l, bytes) else l for l in labels]
-        # 用stock_code映射纠正乱码
         corrected_labels = []
         for i, d in enumerate(normalized_data):
             if "stock_code" in d and d["stock_code"]:

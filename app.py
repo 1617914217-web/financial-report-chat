@@ -104,13 +104,38 @@ def chat(req: ChatRequest):
             }
         else:
             query_result = None
+        # 构建思考过程
+        steps = []
+        preprocessed = result.get("preprocessed", "")
+        if isinstance(preprocessed, dict):
+            steps.append({"step": "文本预处理", "detail": f"原文 → 标准化：{preprocessed.get('normalized', '')}，清洗：{preprocessed.get('cleaned', '')}"})
+        intent = result.get("intent", "")
+        confidence = result.get("intent_confidence", 0)
+        steps.append({"step": "意图分类", "detail": f"识别为「{intent}」，置信度 {confidence:.1%}"})
+        slots = result.get("slots", {})
+        slot_desc = ", ".join(f"{k}={v}" for k, v in slots.items() if v) if slots else "未提取到槽位"
+        steps.append({"step": "槽位填充", "detail": slot_desc})
+        sql = result.get("sql", "")
+        if sql:
+            steps.append({"step": "NL2SQL生成", "detail": sql})
+        sql_valid = result.get("sql_valid", False)
+        steps.append({"step": "SQL校验", "detail": "通过" if sql_valid else "未通过"})
+        if data:
+            steps.append({"step": "数据查询", "detail": f"返回 {len(data)} 条记录"})
+        conclusion = result.get("conclusion", "")
+        if conclusion:
+            steps.append({"step": "结论生成", "detail": conclusion})
+        if result.get("error"):
+            steps.append({"step": "错误", "detail": result["error"]})
+
         return JSONResponse(content=jsonable({
-            "answer": result.get("conclusion", result.get("answer", "")),
-            "sql": result.get("sql", ""),
+            "answer": conclusion or "未查询到相关数据。",
+            "sql": sql,
             "data": query_result,
             "chart_path": result.get("chart_path"),
-            "intent": result.get("intent"),
-            "slots": result.get("slots"),
+            "intent": intent,
+            "slots": slots,
+            "steps": steps,
         }))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
