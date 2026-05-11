@@ -1,0 +1,139 @@
+/* ─── DatabasePage ─── */
+.db-page {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.db-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 24px;
+  border-bottom: 1px solid #1e2a4a;
+  flex-shrink: 0;
+}
+.db-header-left {
+  display: flex;
+  align-items: center;
+}
+.db-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #e8eaf6;
+}
+.db-btn {
+  background: #111827 !important;
+  border-color: #1e2a4a !important;
+  color: #8a9bcf !important;
+  font-size: 13px;
+}
+.db-btn:hover { border-color: #1677ff !important; color: #1677ff !important; }
+
+/* 统计卡片 */
+.db-stats {
+  padding: 14px 24px 0;
+  flex-shrink: 0;
+}
+.db-stat-card {
+  background: #111827 !important;
+  border: 1px solid #1e2a4a !important;
+  border-radius: 10px !important;
+}
+.db-stat-card .ant-statistic-title { color: #5a6a8a; }
+.db-stat-card .ant-card-body { padding: 12px 16px !important; }
+.db-stat-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  background: var(--stat-color);
+  border-radius: 10px 10px 0 0;
+}
+
+/* Tabs */
+.db-tabs-area {
+  flex: 1;
+  overflow: hidden;
+  padding: 0 24px;
+}
+.db-tabs .ant-tabs-nav {
+  margin-bottom: 0;
+}
+.db-tabs .ant-tabs-tab {
+  color: #5a6a8a !important;
+  font-size: 13px;
+  padding: 6px 0 !important;
+}
+.db-tabs .ant-tabs-tab-active .ant-tabs-tab-btn { color: #1677ff !important; }
+.db-tabs .ant-tabs-ink-bar { background: #1677ff !important; }
+.db-tabs .ant-tabs-content { height: calc(100% - 40px); }
+.db-tabs .ant-tabs-tabpane { height: 100%; }
+
+/* 预览区 */
+.db-preview {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.db-preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.db-preview-hint {
+  font-size: 11px;
+  color: #5a6a8a;
+}
+.db-copy-btn {
+  background: #1a2544 !important;
+  border-color: #1e2a4a !important;
+  color: #5a6a8a !important;
+  font-size: 11px !important;
+}
+.db-copy-btn:hover { color: #1677ff !important; border-color: #1677ff !important; }
+.db-preview-table .ant-table { background: transparent !important; }
+.db-preview-table .ant-table-thead > tr > th {
+  background: #1a2544 !important;
+  color: #8a9bcf !important;
+  border-bottom: 1px solid #1e2a4a !important;
+  font-size: 12px;
+}
+.db-preview-table .ant-table-tbody > tr > td {
+  background: #0d1117 !important;
+  border-bottom: 1px solid #111827 !important;
+  color: #c8d0e8 !important;
+  font-size: 12px;
+}
+.db-preview-table .ant-table-tbody > tr:hover > td { background: #1a2544 !important; }
+.db-null { color: #3a4a6a; font-size: 11px; }
+
+/* Drawer */
+.db-drawer .ant-drawer-header {
+  background: #0a0e27 !important;
+  border-bottom: 1px solid #1e2a4a !important;
+  color: #e8eaf6 !important;
+}
+.db-drawer .ant-drawer-body { background: #0a0e27 !important; padding: 16px !important; }
+.db-desc .ant-descriptions-item-label { color: #5a6a8a !important; background: #111827 !important; }
+.db-desc .ant-descriptions-item-content { color: #e8eaf6 !important; background: #0d1117 !important; }
+.db-col-title {
+  font-size: 13px;
+  color: #8a9bcf;
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+.db-drawer .ant-table { background: transparent !important; }
+.db-drawer .ant-table-thead > tr > th {
+  background: #1a2544 !important;
+  color: #8a9bcf !important;
+  border-bottom: 1px solid #1e2a4a !important;
+  font-size: 12px;
+}
+.db-drawer .ant-table-tbody > tr > td {
+  background: #111827 !important;
+  border-bottom: 1px solid #1e2a4a !important;
+  color: #c8d0e8 !important;
+  font-size: 12px;
+}
