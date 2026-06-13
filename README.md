@@ -1,139 +1,257 @@
 # 财报智能问数系统
 
-泰迪杯第十四届数据挖掘竞赛B题——构建上市公司财报智能问数系统。
+泰迪杯第十四届数据挖掘竞赛B题：从PDF年报自动提取财务数据 → 字段映射+五维校验入库 → 自然语言查数。
 
-从PDF年报自动提取财务数据 → 字段映射+五维校验入库 → 前端自然语言查询。双引擎（规则优先 + LLM兜底），规则能拿到的就不调API，省成本。
+双引擎（规则优先 + LLM兜底），规则能拿到的就不调API，省成本。
 
 ---
 
-## 项目结构
+## 数据怎么流
+
+```
+┌──────────┐    ┌──────────────┐    ┌──────────────┐    ┌──────────┐
+│ 1252份   │───→│ 双引擎提取    │───→│ raw_extracted │───→│ 字段映射  │
+│ PDF年报  │    │ 规则+LLM兜底  │    │ (原始数据)    │    │          │
+└──────────┘    └──────────────┘    └──────────────┘    └──────────┘
+                                                               │
+                                                               ▼
+┌──────────┐    ┌──────────────┐    ┌──────────────┐    ┌──────────┐
+│ 答案+图表 │←───│ 可视化+结论  │←───│ SQL执行      │←───│ 四张标准表│
+│          │    │              │    │              │    │          │
+└──────────┘    └──────────────┘    └──────────────┘    └──────────┘
+     ↑                                    ↑
+     │                                    │
+┌────┴─────┐    ┌──────┐    ┌────────┐   ┌─┴────────┐
+│ 用户问句 │→→→→│预处理│→→→→│意图分类│→→→│ 槽位填充 │
+│          │    │      │    │        │   │          │
+└──────────┘    └──────┘    └────────┘   └────┬─────┘
+                                              │
+                          ┌───────────────────┘
+                          ▼
+                    ┌──────────┐
+                    │ NL2SQL   │
+                    │ 自然语言→SQL│
+                    └────┬─────┘
+                         │
+                    ┌────▼─────┐
+                    │ SQL校验  │
+                    │ 安全拦截 │
+                    └──────────┘
+```
+
+两条线：
+- **离线**：PDF → 提取 → 映射 → 校验 → 四张表
+- **在线**：问句 → 预处理 → 意图 → 槽位 → NL2SQL → 执行 → 可视化
+
+---
+
+## 技术栈
+
+| 层 | 技术 | 为什么 |
+|---|------|--------|
+| PDF解析 | pdfplumber | 比pymupdf对表格更友好，能拿字符坐标 |
+| LLM兜底 | DeepSeek-V3 (SiliconFlow) | 便宜，中文强，免备案 |
+| 意图分类 | TF-IDF + 逻辑回归 | 样本少（1708条），传统ML泛化更好 |
+| 槽位填充 | 规则匹配 | 准确率够用，零训练成本 |
+| NL2SQL | Prompt + Few-Shot | 不用微调，schema变了改prompt就行 |
+| 数据库 | MySQL 8 | 窗口函数、复杂查询 |
+| 后端 | FastAPI | 异步，自动生成文档 |
+| 前端 | React + TypeScript + Vite | 组件化，热重载快 |
+| 图表 | Matplotlib + ECharts | 后端静态图 + 前端交互 |
+| 向量检索 | BAAI/bge-large-zh-v1.5 | 中文embedding效果最好之一 |
+
+---
+
+## 文件结构
 
 ```
 任务B_财报智能抽取/
-├── app.py                      FastAPI后端入口
-├── pipeline.py                 端到端问答流水线（核心）
-├── config_loader.py            .env配置加载
-├── config/                     财务术语映射表
-├── data/                       公司别名等数据文件
-├── extractors/                 PDF提取引擎
-│   ├── engine_a_rules.py       规则引擎（核心）
-│   ├── engine_b_deepseek.py    LLM兜底
-│   └── pdf_extractor.py        统一入口
-├── models/                     意图分类模型
-├── field_matcher.py            字段映射ETL
-├── llm_filler.py               LLM填充缺失数据
-├── validator.py                五维校验
-├── preprocess_pipeline.py      文本预处理
-├── predict_intent.py           意图分类推理
-├── slot_filler.py              槽位填充
-├── nl2sql.py                   NL2SQL生成
-├── sql_validator.py            SQL安全校验
-├── knowledge_graph.py          财务知识图谱
-├── visualizer.py               可视化与结论生成
-├── run_batch_extract.py        批量PDF处理
-├── train_intent_classifier.py  意图分类训练
-├── frontend/                   ← 前端React项目
-│   ├── src/
-│   │   ├── pages/Chat/         智能问答页
-│   │   ├── pages/Login/        用户登录页
-│   │   ├── components/         布局&思考过程组件
-│   │   ├── services/api.ts     API调用
-│   │   ├── store/              Zustand状态管理
-│   │   └── utils/              工具函数
-│   ├── package.json
-│   └── vite.config.ts
-├── README.md
-└── .env                        数据库密码+API Key
+│
+├── 📊 数据管道（离线）
+│   ├── extractors/
+│   │   ├── engine_a_rules.py       ⭐ 规则引擎：pdfplumber提取表格数据
+│   │   ├── engine_b_deepseek.py    LLM兜底：API提取规则搞不定的数据
+│   │   ├── pdf_extractor.py        统一入口：调度双引擎
+│   │   └── table_mapper.py         表类型映射
+│   ├── run_batch_extract.py        批量处理所有PDF
+│   ├── field_matcher.py            ⭐ 字段映射：中文术语→数据库字段名
+│   ├── llm_filler.py               LLM填充规则缺漏的字段
+│   └── validator.py               ⭐ 五维校验
+│
+├── 🧠 智能问答（在线）
+│   ├── preprocess_pipeline.py      文本预处理
+│   ├── predict_intent.py           意图分类推理
+│   ├── train_intent_classifier.py  训练意图分类器
+│   ├── slot_filler.py              ⭐ 槽位填充：抽取公司/年份/指标
+│   ├── slot_filler_bert.py         BERT版（代码完整，待GPU）
+│   ├── nl2sql.py                  ⭐ NL2SQL生成
+│   ├── sql_validator.py           SQL安全校验
+│   ├── knowledge_graph.py         ⭐ 派生指标推理
+│   ├── visualizer.py              可视化+结论生成
+│   └── pipeline.py                ⭐ 端到端流水线
+│
+├── 🔍 RAG检索增强
+│   ├── rag_knowledge_base.py       文档切分+向量化+混合检索
+│   ├── entity_aligner.py           实体对齐
+│   ├── agent_planner.py            Plan-and-Execute Agent
+│   └── task3_pipeline.py           统一入口
+│
+├── 🌐 后端服务
+│   ├── app.py                      FastAPI入口（/chat /sql等）
+│   ├── config_loader.py            加载.env
+│   └── start_backend.bat           Windows启动
+│
+├── 🖥️ 前端
+│   └── frontend/
+│       ├── src/pages/Chat/         智能问答页（思考过程展示）
+│       ├── src/pages/Login/        登录页
+│       ├── src/components/Layout/  侧边栏
+│       ├── src/services/api.ts     API封装
+│       ├── src/store/              Zustand状态管理
+│       └── vite.config.ts          代理/api→后端
+│
+├── 📦 数据与配置
+│   ├── .env                        ⚠️ 不进Git
+│   ├── .gitignore
+│   └── data/
+│       ├── company_alias.json      公司名→代码映射
+│       ├── financial_dictionary.json 术语标准词典
+│       ├── intent_train.csv        意图训练数据
+│       └── subject_synonym.json    科目同义词
+│
+└── 📖 README.md                    本文档
 ```
 
 ---
 
-## 数据流
+## 核心模块
 
-```
-PDF年报 → pdf_extractor.py → raw_extracted（原始数据）
-                                   ↓
-                           field_matcher.py（字段映射）
-                                   ↓
-                           validator.py（五维校验）
-                                   ↓
-                    四张标准表（balance_sheet等）
-                                   ↓
-                         pipeline.py（自然语言查询）
-                                   ↓
-                         答案 + 图表 + 结论
-```
+### PDF数据提取（engine_a_rules.py）
 
+年报PDF表格 → 财务数据。
 
-踩过的坑
+**为什么难**：上交深交表格结构不同、同公司不同年份也不同、合并单元格+跨页+水印。
 
-深交所PDF列错位。一开始只处理上交所的PDF，能跑通。后面跑深交所的万邦德年报，提取出来全是空值。原因是深交所的表格结构不一样，年份标签（如"2022年"）在奇数列，实际数值在相邻偶数列。规则引擎直接取标签列的下一格，那里是空的。解决：双向扫描，优先向右找数值，找不到再向左。
+**怎么做的**：
+1. pdfplumber提取表格 + 字符坐标
+2. 识别表头（年份标签往往不在数据列位置）
+3. 双向扫描匹配数值（先向右找，找不到向左）
+4. 推断报告类型
 
-raw_extracted的表类型不可信。PDF提取阶段会给每条记录打一个auto_table_type标记，但这个标记经常不准。一页PDF里可能有多种数据混在一起，系统只是根据页面特征猜了一个类型。结果就是字段被写进错误的表。比如other_income（营业外收入）只存在于stock_income_statement_data表，但有记录被标记为income_sheet，写不进去报错。解决：不再信任auto_table_type，按实际字段内容决定目标表。每个表有一批专属字段，匹配最多的就是目标表。
+**关键——自适应列对齐**：深交所年报年份标签在奇数列、数值在偶数列。不再固定取"年份列+1"，双向扫描取第一个非空数值。万邦德从0张表突破到2张。
 
-百分比格式导致数据库超范围。毛利率、资产负债率这些字段，PDF里通常不带百分号，存的是85.23这样的数。MySQL里是decimal(10,4)，超过9999就爆了。解决：值大于1的统一除100转成小数，超过0.9999的直接扔掉。
+**成功率**：1252份年报86%自动提取，14%是极窄表格（2-3列）或扫描件。
 
-映射表里有不存在的字段。一开始收集财务术语映射的时候比较随意，映射了一些字段名，数据库里根本没有。写入的时候报Unknown column错误。解决：以数据库实际列名为准，只保留四张表里真实存在的字段映射。
+### 字段映射（field_matcher.py）
 
-DeepSeek API Key被拒。一开始用的key调DeepSeek官方接口，一直401。解决：换成SiliconFlow的代理端点和key。
+"营业收入（元）" → `total_operating_revenue`。
 
-LLM兜底的原则。调LLM填充缺失数据的时候有个原则：只填规则拿不到的，不覆盖已有数据。避免LLM产生幻觉结果覆盖掉正确结果。
+同一指标不同公司叫法不同（"营业总收入"/"营业收入"/"主营业务收入"），用模糊匹配（编辑距离+关键词）+ 按字段专属度决定目标表。
 
-五维校验。数据进标准表之前要过一遍校验：表内平衡（资产等于负债加权益）、表间钩稽、时序连续性（增长率不能太离谱）、业务逻辑（净利润不能大于营业收入）、跨报告一致（年报和季报冲突以年报为准）。逻辑校验发现明显错误会拒绝入库，其他情况只打标记让人去看。
+### 五维校验（validator.py）
+
+| 维度 | 检查什么 | 例子 |
+|------|---------|------|
+| 表内平衡 | 会计恒等式 | 资产 = 负债 + 所有者权益 |
+| 表间钩稽 | 跨表一致性 | 利润表净利 = 资产负债表未分配利润变动 |
+| 时序连续性 | 增长率合理 | 营收年增长率不在-80%~300%报警 |
+| 业务逻辑 | 常识约束 | 净利不能大于营收 |
+| 跨报告一致 | 年报/季报冲突 | 冲突以年报为准 |
+
+### 意图分类（predict_intent.py）
+
+TF-IDF + 逻辑回归，1708条训练，5折交叉F1=0.80。样本少用ML优于DL。
+
+| 类别 | 例子 | SQL类型 |
+|------|------|--------|
+| QUERY_SINGLE | "金花2022净利" | SELECT ... WHERE |
+| CALCULATE | "金花2022毛利率" | SELECT + 计算列 |
+| COMPARE | "金花vs万邦德营收" | WHERE IN (...) |
+| RANK | "净利Top3" | ORDER BY ... LIMIT |
+| QUERY_MULTI | "营收和净利" | 多字段 |
+
+### 槽位填充（slot_filler.py）
+
+"金花股份2022年净利润是多少" → `{company: "金花股份", company_code: "600080", year: "2022", metric: "净利润"}`
+
+### NL2SQL（nl2sql.py）
+
+Prompt Engineering：Schema + 6个Few-Shot + 安全规则 + 槽位信息 → SQL。不微调，schema变了改prompt就行。
+
+### 知识图谱（knowledge_graph.py）
+
+派生指标推理：ROE = 净利/净资产，资产负债率 = 总负债/总资产。递归展开到基础字段。
+
+### Plan-and-Execute Agent（agent_planner.py）
+
+复杂问题拆多步执行。"Top3净利+同比增速" → PLAN(查Top3→查上年→算同比) → 逐步执行 → 汇总。
+
+### RAG知识库（rag_knowledge_base.py）
+
+160份研报 → 语义切分 → bge-large-zh向量化 → Dense+BM25混合检索 → 回答数据库查不到的问题。
 
 ---
 
-## 启动
+## 数据库
 
-### 后端
+### raw_extracted（原始提取）
+```sql
+serial_number INT AUTO_INCREMENT PRIMARY KEY,
+pdf_name VARCHAR(255),
+company_name VARCHAR(100),
+report_period VARCHAR(20),    -- '2022-12-31'
+raw_columns JSON, raw_data JSON,
+auto_table_type VARCHAR(50),  -- 不可信！
+process_status VARCHAR(20),
+```
+
+### 四张标准表
+
+| 表 | 内容 | 代表字段 |
+|----|------|---------|
+| balance_sheet | 资产负债表 | asset_total_assets, liability_total_liabilities |
+| stock_income_statement_data | 利润表 | total_operating_revenue, net_profit |
+| income_sheet | 现金流量表 | cf_operating_cash_flow |
+| core_performance_indicators_sheet | 核心指标 | gross_profit_margin, net_profit_margin, roe |
+
+---
+
+## 跑起来
 
 ```bash
-# 安装依赖
-pip install pdfplumber pymysql fastapi uvicorn scikit-learn sqlparse matplotlib cryptography
+git clone https://github.com/1617914217-web/financial-report-chat.git
+cd financial-report-chat
 
-# 配置 .env（数据库密码+API Key）
-# MYSQL_HOST=127.0.0.1
-# MYSQL_PASSWORD=xxx
-# SILICONFLOW_API_KEY=xxx
+# 配置 .env
+# MYSQL_HOST=127.0.0.1 MYSQL_PASSWORD=xxx SILICONFLOW_API_KEY=xxx
 
-# 启动
+pip install pdfplumber pymysql fastapi uvicorn scikit-learn sqlparse matplotlib
 python -m uvicorn app:app --host 0.0.0.0 --port 8000 --reload
+
+cd frontend && npm install && npm run dev  # → localhost:5173
 ```
 
-### 前端
-
+数据处理（按需）：
 ```bash
-cd frontend
-npm install
-npm run dev          # → localhost:5173
+python run_batch_extract.py
+python field_matcher.py
+python validator.py
 ```
-
-Vite代理 `/api` → `localhost:8000`，无需手动改baseURL。
-
-### 数据处理（按需）
-
-```bash
-python run_batch_extract.py          # 批量PDF提取
-python field_matcher.py              # 字段映射
-python field_matcher.py --reprocess failed  # 重试失败记录
-python llm_filler.py                 # LLM兜底填充
-python validator.py                  # 五维校验
-```
-
-数据库在 127.0.0.1:3306，配置在 .env。
 
 ---
 
-## 核心模块说明
+## 踩坑记录
 
-| 模块 | 文件 | 说明 |
-|------|------|------|
-| PDF解析 | extractors/ | 规则引擎优先+LLM兜底，86%成功率 |
-| 字段映射 | field_matcher.py | 中文术语→数据库字段映射 |
-| 五维校验 | validator.py | 表内平衡/表间钩稽/时序/业务逻辑/跨报 |
-| 意图分类 | predict_intent.py | TF-IDF+LR，5类F1=0.80 |
-| 槽位填充 | slot_filler.py | 提取公司/年份/指标 |
-| NL2SQL | nl2sql.py | 自然语言转SQL+双层校验 |
-| 知识图谱 | knowledge_graph.py | 派生指标推理(ROE=净利/净资产) |
-| 可视化 | visualizer.py | 图表自动选择+结论生成 |
-| 流水线 | pipeline.py | Plan-and-Execute多步执行 |
+1. **深交所列错位**：年份标签在奇数列、数据在偶数列，直接取+1全是空值。双向扫描解决。
+
+2. **auto_table_type不可信**：PDF混多种数据，推断不准。按字段专属度重新匹配目标表。
+
+3. **百分比超限**：毛利率85.23存decimal(10,4)爆掉。大于1自动/100。
+
+4. **编码噩梦**：库存UTF-8→latin1→PowerShell GBK三层乱码。全链路utf8mb4。
+
+5. **DeepSeek API 401**：官方接口被拒，换SiliconFlow代理。
+
+6. **LLM兜底原则**：只填规则拿不到的，不覆盖已有正确数据。
+
+7. **映射字段不存在**：以数据库实际列名为准，不留虚映射。
