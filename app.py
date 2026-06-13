@@ -29,8 +29,11 @@ def jsonable(obj):
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, PROJECT_DIR)
 
+from config_loader import load as load_env
 from pipeline import FinancialQA
 from sql_validator import SQLValidator
+
+load_env()
 
 app = FastAPI(title="Financial Report QA API", version="1.0")
 
@@ -59,13 +62,13 @@ def get_validator():
         _validator_instance = SQLValidator()
     return _validator_instance
 
-# MySQL 配置
+# MySQL 配置（从 .env 读取，不再硬编码密码）
 MYSQL_CONFIG = {
-    "host": "127.0.0.1",
-    "port": 3306,
-    "user": "root",
-    "password": "181415157Ak.",
-    "database": "intelligent_data_query",
+    "host": os.environ.get("MYSQL_HOST", "127.0.0.1"),
+    "port": int(os.environ.get("MYSQL_PORT", "3306")),
+    "user": os.environ.get("MYSQL_USER", "root"),
+    "password": os.environ.get("MYSQL_PASSWORD", ""),
+    "database": os.environ.get("MYSQL_DATABASE", "intelligent_data_query"),
     "charset": "utf8mb4",
 }
 
